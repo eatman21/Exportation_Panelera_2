@@ -407,13 +407,13 @@ public class ExportationDelivery extends JFrame {
         // Create action buttons panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.setBackground(BACKGROUND_COLOR);
-        
-        btnSaveAll = new JButton("Save All");
-        btnClear = new JButton("Clear All");
-        
+
+        btnSaveAll = new JButton("💾 Save All");
+        btnClear = new JButton("🗑️ Clear All");
+
         buttonPanel.add(btnSaveAll);
         buttonPanel.add(btnClear);
-        
+
         // Add components to frame
         setLayout(new BorderLayout());
         add(tabbedPane, BorderLayout.CENTER);
@@ -671,11 +671,6 @@ public class ExportationDelivery extends JFrame {
         
         // NEW: Generate Tracking Number button
         btnGenerateTracking = new JButton("🔄 Generate Tracking Number");
-        btnGenerateTracking.setFont(LABEL_FONT);
-        btnGenerateTracking.setForeground(Color.WHITE);
-        btnGenerateTracking.setBackground(ACCENT_COLOR);
-        btnGenerateTracking.setBorder(new EmptyBorder(5, 10, 5, 10));
-        btnGenerateTracking.setFocusPainted(false);
         btnGenerateTracking.setToolTipText("Generate tracking number based on destination country");
         
         // Add components to panel
@@ -1135,38 +1130,53 @@ public class ExportationDelivery extends JFrame {
     }
     
     /**
-     * Style a button with custom look
+     * Style a button with custom look - user-friendly colors with black text
      */
     private void customizeButton(JButton button) {
         if (button != null) {
             button.setFont(LABEL_FONT);
-            button.setForeground(Color.WHITE);
-            
-            // Set different colors for different button types
-            if (button == btnGenerateTracking) {
-                button.setBackground(ACCENT_COLOR);
+            button.setForeground(Color.BLACK); // Black text for better visibility
+
+            // Set user-friendly colors for different button types
+            Color buttonColor;
+            Color hoverColor;
+
+            if (button == btnSaveAll) {
+                // Light Green for Save button - positive action
+                buttonColor = new Color(46, 204, 113); // Emerald Green
+                hoverColor = new Color(39, 174, 96);   // Darker green
+            } else if (button == btnClear) {
+                // Light Red for Clear button - warning action
+                buttonColor = new Color(231, 76, 60);  // Alizarin Red
+                hoverColor = new Color(192, 57, 43);   // Darker red
+            } else if (button == btnGenerateTracking) {
+                // Light Blue for Generate button
+                buttonColor = new Color(52, 152, 219); // Peter River Blue
+                hoverColor = new Color(41, 128, 185);  // Darker blue
+            } else if (button == btnCalculateShipping) {
+                // Light Purple for Calculate button
+                buttonColor = new Color(155, 89, 182); // Amethyst Purple
+                hoverColor = new Color(142, 68, 173);  // Darker purple
             } else {
-                button.setBackground(PRIMARY_COLOR);
+                buttonColor = PRIMARY_COLOR;
+                hoverColor = SECONDARY_COLOR;
             }
-            
+
+            button.setBackground(buttonColor);
             button.setBorder(new EmptyBorder(5, 15, 5, 15));
             button.setFocusPainted(false);
-            
+            button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
             // Add hover effect
+            final Color finalButtonColor = buttonColor;
+            final Color finalHoverColor = hoverColor;
+
             button.addMouseListener(new java.awt.event.MouseAdapter() {
                 public void mouseEntered(java.awt.event.MouseEvent evt) {
-                    if (button == btnGenerateTracking) {
-                        button.setBackground(ACCENT_COLOR.darker());
-                    } else {
-                        button.setBackground(SECONDARY_COLOR);
-                    }
+                    button.setBackground(finalHoverColor);
                 }
                 public void mouseExited(java.awt.event.MouseEvent evt) {
-                    if (button == btnGenerateTracking) {
-                        button.setBackground(ACCENT_COLOR);
-                    } else {
-                        button.setBackground(PRIMARY_COLOR);
-                    }
+                    button.setBackground(finalButtonColor);
                 }
             });
         }

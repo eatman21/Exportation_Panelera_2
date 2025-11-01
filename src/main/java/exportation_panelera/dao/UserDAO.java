@@ -2,6 +2,7 @@ package exportation_panelera.dao;
 
 import exportation_panelera.Model.LoginDTO;
 import exportation_panelera.db.DatabaseManager;
+import org.mindrot.jbcrypt.BCrypt;
 
 import java.sql.*;
 import java.time.LocalDateTime;
@@ -111,18 +112,30 @@ public class UserDAO {
     
     /**
      * Offline authentication for when database is unavailable
+     * WARNING: For security, disable offline mode in production or use environment-specific credentials
      */
     private boolean authenticateOffline(String username, String password) {
-        // Default admin credentials for offline mode
-        boolean isDefaultAdmin = "admin".equals(username) && "admin123".equals(password);
-        
-        if (isDefaultAdmin) {
-            logger.info("Offline authentication successful for default admin");
-            return true;
+        // Offline authentication disabled for security
+        // In emergency situations, you can enable this with proper credentials from configuration
+        logger.warning("Database unavailable. Offline authentication is disabled for security.");
+        logger.info("Please ensure database is running or contact system administrator.");
+        return false;
+
+        /* Offline mode implementation (disabled by default):
+        // Load from secure configuration instead of hardcoding
+        String offlineUsername = ConfigLoader.getProperty("offline.username", "");
+        String offlinePasswordHash = ConfigLoader.getProperty("offline.password.hash", "");
+
+        if (!offlineUsername.isEmpty() && !offlinePasswordHash.isEmpty()) {
+            if (offlineUsername.equals(username) && verifyPassword(password, offlinePasswordHash)) {
+                logger.warning("SECURITY: Offline authentication used for: " + username);
+                return true;
+            }
         }
-        
+
         logger.warning("Offline authentication failed for user: " + username);
         return false;
+        */
     }
     
     /**
@@ -341,21 +354,32 @@ public class UserDAO {
     }
     
     /**
-     * Hash a password (simplified - use BCrypt or similar in production)
+     * Hash a password using BCrypt with salt
+     * BCrypt automatically generates a salt and includes it in the hash
+     *
+     * @param password Plain text password
+     * @return BCrypt hashed password
      */
     private String hashPassword(String password) {
-        // In a real application, use BCrypt, Argon2, or similar
-        // This is just a simple example
-        return password + "_hashed"; // Replace with proper hashing
+        // BCrypt with work factor of 12 (2^12 iterations)
+        // Higher work factor = more secure but slower
+        return BCrypt.hashpw(password, BCrypt.gensalt(12));
     }
-    
+
     /**
-     * Verify a password against its hash
+     * Verify a password against its BCrypt hash
+     *
+     * @param password Plain text password to verify
+     * @param hash BCrypt hash to compare against
+     * @return true if password matches hash, false otherwise
      */
     private boolean verifyPassword(String password, String hash) {
-        // In a real application, use proper password verification
-        // This is just a simple example
-        return (password + "_hashed").equals(hash);
+        try {
+            return BCrypt.checkpw(password, hash);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Error verifying password hash", e);
+            return false;
+        }
     }
     
     /**
