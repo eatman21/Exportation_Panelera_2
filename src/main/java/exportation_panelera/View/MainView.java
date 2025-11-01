@@ -1,11 +1,16 @@
 package exportation_panelera.View;
 
+import exportation_panelera.util.I18nManager;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.imageio.ImageIO;
 
 // Importaciones explícitas de las clases que estás usando
 import exportation_panelera.View.ExportationDelivery;
@@ -30,13 +35,33 @@ public class MainView extends JFrame {
     // UI Components
     private JPanel mainPanel;
     private JLabel lblTitle;
-    private JButton btnExportation;
     private JButton btnDelivery;
     private JButton btnSignout;
-    
+    private BufferedImage backgroundImage;
+
+    /**
+     * Custom JPanel that paints a background image
+     */
+    class BackgroundPanel extends JPanel {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (backgroundImage != null) {
+                // Draw the image scaled to fill the panel
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
+
+                // Add semi-transparent overlay for better contrast
+                g2d.setColor(new Color(0, 0, 0, 80)); // Black with 31% opacity (lighter)
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+            }
+        }
+    }
+
     // Constructor
     public MainView() {
-        setTitle("Exportation Panelera");
+        setTitle(I18nManager.getString("main.title"));
         setSize(800, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -45,9 +70,17 @@ public class MainView extends JFrame {
     }
     
     private void initComponents() {
-        // Initialize your UI components here
-        mainPanel = new JPanel();
-        mainPanel.setBackground(BACKGROUND_COLOR);
+        // Load background image
+        try {
+            backgroundImage = ImageIO.read(getClass().getResourceAsStream("/sugar-cane.jpg"));
+            logger.info("Background image loaded successfully");
+        } catch (IOException | IllegalArgumentException e) {
+            logger.log(Level.WARNING, "Could not load background image, using solid color", e);
+            backgroundImage = null;
+        }
+
+        // Initialize main panel with background
+        mainPanel = new BackgroundPanel();
         mainPanel.setLayout(new BorderLayout());
         
         // Create header panel with title
@@ -56,25 +89,23 @@ public class MainView extends JFrame {
         headerPanel.setPreferredSize(new Dimension(800, 80));
         headerPanel.setLayout(new BorderLayout());
         
-        lblTitle = new JLabel("Exportation Panelera Management System");
+        lblTitle = new JLabel(I18nManager.getString("main.welcome"));
         lblTitle.setFont(TITLE_FONT);
         lblTitle.setForeground(Color.WHITE);
         lblTitle.setHorizontalAlignment(JLabel.CENTER);
-        lblTitle.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
+        lblTitle.setBorder(BorderFactory.createEmptyBorder(18, 0, 18, 0));
         headerPanel.add(lblTitle, BorderLayout.CENTER);
-        
-        // Create navigation panel
+
+        // Create navigation panel (transparent to show background)
         JPanel navigationPanel = new JPanel();
-        navigationPanel.setBackground(PANEL_COLOR);
-        navigationPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
-        navigationPanel.setLayout(new GridLayout(3, 1, 0, 20));
-        
+        navigationPanel.setOpaque(false); // Make transparent
+        navigationPanel.setBorder(BorderFactory.createEmptyBorder(35, 150, 35, 150)); // More side margins
+        navigationPanel.setLayout(new GridLayout(2, 1, 0, 15)); // Reduced spacing between buttons
+
         // Create buttons
-        btnExportation = createNavigationButton("Exportation Information", "View and manage exportation data");
-        btnDelivery = createNavigationButton("Delivery Information", "Track and manage deliveries");
-        btnSignout = createNavigationButton("Sign Out", "Exit the application");
-        
-        navigationPanel.add(btnExportation);
+        btnDelivery = createNavigationButton(I18nManager.getString("main.delivery"), "Track and manage deliveries");
+        btnSignout = createNavigationButton(I18nManager.getString("main.logout"), "Exit the application");
+
         navigationPanel.add(btnDelivery);
         navigationPanel.add(btnSignout);
         
@@ -83,20 +114,13 @@ public class MainView extends JFrame {
         mainPanel.add(navigationPanel, BorderLayout.CENTER);
         
         // Add action listeners
-        btnExportation.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                openExportationForm();
-            }
-        });
-        
         btnDelivery.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 openDeliveryManagementForm();
             }
         });
-        
+
         btnSignout.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -110,24 +134,32 @@ public class MainView extends JFrame {
     
     private JButton createNavigationButton(String text, String tooltip) {
         JButton button = new JButton(text);
-        button.setFont(BUTTON_FONT);
-        button.setBackground(SECONDARY_COLOR);
-        button.setForeground(Color.DARK_GRAY);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 16)); // Moderate font size
+        button.setBackground(new Color(255, 255, 255, 240)); // Almost opaque white
+        button.setForeground(new Color(24, 53, 103)); // Dark blue text
         button.setFocusPainted(false);
-        button.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        button.setOpaque(true);
+        button.setBorderPainted(true);
+        // Add visible border with compact padding
+        button.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(0, 119, 182), 2), // Thinner blue border
+            BorderFactory.createEmptyBorder(12, 25, 12, 25) // Reduced padding
+        ));
         button.setToolTipText(tooltip);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        
+
         // Add hover effect for better UX
         button.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseEntered(java.awt.event.MouseEvent evt) {
-                button.setBackground(new Color(0, 99, 162)); // Darker shade for hover
+                button.setBackground(new Color(0, 119, 182)); // Blue background on hover
+                button.setForeground(Color.WHITE); // White text on hover
             }
             public void mouseExited(java.awt.event.MouseEvent evt) {
-                button.setBackground(SECONDARY_COLOR);
+                button.setBackground(new Color(255, 255, 255, 240)); // Back to white
+                button.setForeground(new Color(24, 53, 103)); // Back to dark blue text
             }
         });
-        
+
         return button;
     }
     

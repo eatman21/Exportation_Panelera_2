@@ -1176,8 +1176,11 @@ public class DeliveryManagementForm extends javax.swing.JFrame {
    }
 
    /**
-    * Enhanced main method with better error handling
+    * Standalone main method for testing this form independently
+    * NOTE: This is for development/testing only. The application should be started
+    * from exportation_panelera.Exportation_Panelera.main() which shows SignIn first.
     */
+   /*
    public static void main(String args[]) {
        // Set system look and feel
        try {
@@ -1193,15 +1196,15 @@ public class DeliveryManagementForm extends javax.swing.JFrame {
            try {
                DeliveryManagementForm form = new DeliveryManagementForm();
                form.setVisible(true);
-               
+
                // Log successful startup
                Logger.getLogger(DeliveryManagementForm.class.getName())
                    .info("Enhanced Delivery Management Form started successfully");
-                   
+
            } catch (Exception ex) {
                Logger.getLogger(DeliveryManagementForm.class.getName())
                    .log(Level.SEVERE, "Error starting application", ex);
-               
+
                JOptionPane.showMessageDialog(
                    null,
                    "Error starting application: " + ex.getMessage(),
@@ -1211,4 +1214,5 @@ public class DeliveryManagementForm extends javax.swing.JFrame {
            }
        });
    }
+   */
 }

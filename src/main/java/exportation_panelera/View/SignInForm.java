@@ -2,6 +2,7 @@
 
     import exportation_panelera.Model.LoginDTO;
     import exportation_panelera.dao.UserDAO;
+    import exportation_panelera.util.I18nManager;
 
     import javax.swing.*;
     import javax.swing.border.CompoundBorder;
@@ -73,14 +74,14 @@
          */
         private void initComponents() {
             // Set basic frame properties
-            setTitle("Exportation Panelera - Sign In");
+            setTitle(I18nManager.getString("signin.title"));
             setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             setResizable(false);
 
             // Create main panel
             JPanel mainPanel = new JPanel(new BorderLayout());
             mainPanel.setBackground(BACKGROUND_COLOR);
-            mainPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
+            mainPanel.setBorder(new EmptyBorder(70, 70, 70, 70));
 
             // Create and setup components
             createHeaderPanel(mainPanel);
@@ -104,7 +105,7 @@
             headerPanel.setBackground(BACKGROUND_COLOR);
             headerPanel.setBorder(new EmptyBorder(0, 0, 20, 0));
 
-            lblTitle = new JLabel("Sign In to Exportation System", JLabel.CENTER);
+            lblTitle = new JLabel(I18nManager.getString("signin.welcome"), JLabel.CENTER);
             lblTitle.setFont(HEADER_FONT);
             lblTitle.setForeground(PRIMARY_COLOR);
             lblTitle.setBackground(PANEL_COLOR);
@@ -127,7 +128,7 @@
             gbc.insets = new Insets(8, 8, 8, 8);
 
             // Username row
-            lblUsername = new JLabel("Username:");
+            lblUsername = new JLabel(I18nManager.getString("signin.username") + ":");
             customizeLabel(lblUsername);
             gbc.gridx = 0;
             gbc.gridy = 0;
@@ -143,7 +144,7 @@
             formPanel.add(txtUsername, gbc);
 
             // Password row
-            lblPassword = new JLabel("Password:");
+            lblPassword = new JLabel(I18nManager.getString("signin.password") + ":");
             customizeLabel(lblPassword);
             gbc.gridx = 0;
             gbc.gridy = 1;
@@ -160,7 +161,7 @@
             formPanel.add(txtPassword, gbc);
 
             // Show password checkbox
-            chkShowPassword = new JCheckBox("Show password");
+            chkShowPassword = new JCheckBox(I18nManager.getString("signin.showPassword"));
             chkShowPassword.setFont(INPUT_FONT);
             chkShowPassword.setBackground(BACKGROUND_COLOR);
             chkShowPassword.setForeground(TEXT_COLOR);
@@ -179,11 +180,11 @@
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
             buttonPanel.setBackground(BACKGROUND_COLOR);
 
-            btnSignIn = new JButton("Sign In");
+            btnSignIn = new JButton(I18nManager.getString("signin.login"));
             customizeButton(btnSignIn, SUCCESS_COLOR);
             btnSignIn.setToolTipText("Sign in to the system");
 
-            btnCancel = new JButton("Cancel");
+            btnCancel = new JButton(I18nManager.getString("button.cancel"));
             customizeButton(btnCancel, ERROR_COLOR);
             btnCancel.setToolTipText("Cancel and exit application");
 
@@ -214,7 +215,7 @@
             progressBar.setIndeterminate(true);
             progressBar.setVisible(false);
             progressBar.setStringPainted(true);
-            progressBar.setString("Authenticating...");
+            progressBar.setString(I18nManager.getString("signin.loggingIn"));
 
             statusPanel.add(lblStatus, BorderLayout.CENTER);
             statusPanel.add(progressBar, BorderLayout.SOUTH);

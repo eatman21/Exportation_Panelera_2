@@ -1,101 +1,128 @@
 package exportation_panelera.db;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.time.LocalDateTime;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Manages database connections for the application with improved error handling,
- * connection pooling simulation, and offline mode support.
- * Compatible with Java 8+
- * 
+ * Manages database connections using HikariCP connection pooling.
+ * Provides automatic connection management with offline mode support.
+ *
  * @author YourName
- * @version 1.0
+ * @version 2.0
  */
 public class DatabaseManager {
-    
+
     private static final Logger logger = Logger.getLogger(DatabaseManager.class.getName());
-    
-    // Database configuration constants
-    private static final String DB_URL = "jdbc:mysql://localhost:3308/exportation_panelera";
-    private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "";
-    private static final String JDBC_DRIVER = "com.mysql.cj.jdbc.Driver";
-    
-    // Connection management
-    private static volatile Connection connection = null;
+
+    // HikariCP DataSource
+    private static volatile HikariDataSource dataSource = null;
     private static final AtomicBoolean offlineMode = new AtomicBoolean(false);
     private static final AtomicBoolean initialized = new AtomicBoolean(false);
-    
-    // Connection health tracking
-    private static LocalDateTime lastConnectionTest = null;
-    private static final int CONNECTION_TEST_INTERVAL_SECONDS = 30;
-    
+
+    // Configuration
+    private static final String HIKARI_CONFIG_FILE = "hikari.properties";
+
     // Prevent instantiation of utility class
     private DatabaseManager() {
         throw new UnsupportedOperationException("Utility class - cannot be instantiated");
     }
     
     /**
-     * Initializes the database connection with comprehensive error handling
-     * 
-     * @return true if connection successful, false if in offline mode
+     * Initializes the HikariCP connection pool with configuration from properties file
+     *
+     * @return true if initialization successful, false if in offline mode
      */
     public static synchronized boolean initialize() {
-        if (initialized.get() && isConnectionHealthy()) {
-            logger.info("Database already initialized and healthy");
+        if (initialized.get() && dataSource != null && !dataSource.isClosed()) {
+            logger.info("Database pool already initialized and healthy");
             return true;
         }
-        
+
         try {
-            // Load the MySQL JDBC driver
-            Class.forName(JDBC_DRIVER);
-            logger.info("JDBC driver loaded successfully");
-            
-            // Establish the connection with timeout settings
-            connection = DriverManager.getConnection(
-                DB_URL + "?connectTimeout=5000&socketTimeout=10000", 
-                DB_USER, 
-                DB_PASSWORD
-            );
-            
+            // Load HikariCP configuration
+            HikariConfig config = loadHikariConfig();
+
+            // Create the data source
+            dataSource = new HikariDataSource(config);
+
             // Test the connection
-            if (connection != null && connection.isValid(5)) {
-                offlineMode.set(false);
-                initialized.set(true);
-                lastConnectionTest = LocalDateTime.now();
-                
-                logger.info("Database connection initialized successfully");
-                logger.info("Connected to: " + connection.getMetaData().getDatabaseProductName());
-                return true;
-            } else {
-                throw new SQLException("Connection validation failed");
+            try (Connection testConn = dataSource.getConnection()) {
+                if (testConn.isValid(5)) {
+                    offlineMode.set(false);
+                    initialized.set(true);
+
+                    logger.info("HikariCP connection pool initialized successfully");
+                    logger.info("Pool name: " + dataSource.getPoolName());
+                    logger.info("Max pool size: " + dataSource.getMaximumPoolSize());
+                    logger.info("Connected to: " + testConn.getMetaData().getDatabaseProductName());
+                    return true;
+                } else {
+                    throw new SQLException("Connection validation failed");
+                }
             }
-            
-        } catch (ClassNotFoundException e) {
-            logger.log(Level.SEVERE, "MySQL JDBC driver not found - ensure mysql-connector-java is in classpath", e);
-            setOfflineModeWithReason("JDBC driver not found");
-            return false;
-            
+
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, "Failed to connect to database: " + e.getMessage(), e);
+            logger.log(Level.SEVERE, "Failed to initialize database pool: " + e.getMessage(), e);
             setOfflineModeWithReason("Database connection failed: " + e.getMessage());
+            closeDataSource();
             return false;
-            
+
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Unexpected error during database initialization", e);
             setOfflineModeWithReason("Unexpected error: " + e.getMessage());
+            closeDataSource();
             return false;
         }
     }
+
+    /**
+     * Load HikariCP configuration from properties file
+     *
+     * @return HikariConfig instance
+     */
+    private static HikariConfig loadHikariConfig() {
+        HikariConfig config = new HikariConfig();
+
+        try (InputStream input = DatabaseManager.class.getClassLoader().getResourceAsStream(HIKARI_CONFIG_FILE)) {
+            if (input == null) {
+                logger.warning("hikari.properties not found, using default configuration");
+                config.setJdbcUrl("jdbc:mysql://localhost:3308/exportation_panelera");
+                config.setUsername("root");
+                config.setPassword("");
+                config.setMaximumPoolSize(10);
+                config.setMinimumIdle(2);
+                config.setPoolName("ExportationPaneleraPool");
+            } else {
+                Properties props = new Properties();
+                props.load(input);
+                config = new HikariConfig(props);
+                logger.info("HikariCP configuration loaded from " + HIKARI_CONFIG_FILE);
+            }
+        } catch (IOException e) {
+            logger.log(Level.WARNING, "Error loading hikari.properties, using defaults", e);
+            config.setJdbcUrl("jdbc:mysql://localhost:3308/exportation_panelera");
+            config.setUsername("root");
+            config.setPassword("");
+            config.setMaximumPoolSize(10);
+            config.setMinimumIdle(2);
+            config.setPoolName("ExportationPaneleraPool");
+        }
+
+        return config;
+    }
     
     /**
-     * Gets a connection to the database with automatic retry logic
-     * 
+     * Gets a connection from the HikariCP connection pool
+     *
      * @return database connection or null if in offline mode
      * @throws SQLException if a database access error occurs
      */
@@ -105,109 +132,66 @@ public class DatabaseManager {
             logger.finest("In offline mode - returning null connection");
             return null;
         }
-        
+
         // If not initialized, try to initialize
-        if (!initialized.get()) {
-            logger.info("Database not initialized, attempting to initialize");
+        if (!initialized.get() || dataSource == null || dataSource.isClosed()) {
+            logger.info("Database pool not initialized, attempting to initialize");
             if (!initialize()) {
                 throw new SQLException("Cannot establish database connection - system is in offline mode");
             }
         }
-        
-        // Check if we need to test the connection health
-        if (shouldTestConnection()) {
-            if (!isConnectionHealthy()) {
-                logger.warning("Connection health check failed, attempting to reconnect");
-                if (!initialize()) {
-                    throw new SQLException("Database connection lost and reconnection failed");
-                }
-            }
-        }
-        
-        if (connection == null) {
-            throw new SQLException("Database connection is null");
-        }
-        
-        return connection;
-    }
-    
-    /**
-     * Check if the connection needs to be tested based on time interval
-     * 
-     * @return true if connection should be tested
-     */
-    private static boolean shouldTestConnection() {
-        return lastConnectionTest == null || 
-               lastConnectionTest.plusSeconds(CONNECTION_TEST_INTERVAL_SECONDS).isBefore(LocalDateTime.now());
-    }
-    
-    /**
-     * Check if the current connection is healthy
-     * 
-     * @return true if connection is valid and healthy
-     */
-    private static boolean isConnectionHealthy() {
+
         try {
-            boolean healthy = connection != null && 
-                            !connection.isClosed() && 
-                            connection.isValid(2);
-            
-            if (healthy) {
-                lastConnectionTest = LocalDateTime.now();
-            }
-            
-            return healthy;
-            
+            // HikariCP manages connection health automatically
+            return dataSource.getConnection();
         } catch (SQLException e) {
-            logger.log(Level.WARNING, "Error checking connection health", e);
-            return false;
+            logger.log(Level.WARNING, "Failed to get connection from pool", e);
+            throw e;
         }
     }
     
     /**
-     * Attempts to establish a new database connection
-     * 
+     * Attempts to establish a new database connection pool
+     *
      * @return true if connection is successful, false otherwise
      */
     public static boolean tryConnect() {
-        logger.info("Attempting to establish database connection");
-        
+        logger.info("Attempting to establish database connection pool");
+
         // Reset state for clean retry
-        closeCurrentConnection();
+        closeDataSource();
         initialized.set(false);
-        
+
         // Try to initialize
         boolean success = initialize();
-        
+
         if (success) {
-            logger.info("Database connection established successfully");
+            logger.info("Database connection pool established successfully");
         } else {
-            logger.warning("Failed to establish database connection");
+            logger.warning("Failed to establish database connection pool");
         }
-        
+
         return success;
     }
-    
+
     /**
-     * Close the current connection safely
+     * Close the current data source safely
      */
-    private static void closeCurrentConnection() {
-        if (connection != null) {
+    private static void closeDataSource() {
+        if (dataSource != null && !dataSource.isClosed()) {
             try {
-                if (!connection.isClosed()) {
-                    connection.close();
-                    logger.fine("Previous connection closed");
-                }
-            } catch (SQLException e) {
-                logger.log(Level.WARNING, "Error closing previous connection", e);
+                dataSource.close();
+                logger.fine("Data source closed");
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Error closing data source", e);
             }
-            connection = null;
+            dataSource = null;
         }
     }
     
     /**
-     * Tests the database connection and returns detailed status
-     * 
+     * Tests the database connection pool and returns detailed status
+     *
      * @return true if connection works, false otherwise
      */
     public static boolean testConnection() {
@@ -216,36 +200,51 @@ public class DatabaseManager {
                 logger.info("Currently in offline mode, attempting to reconnect");
                 return tryConnect();
             }
-            
-            if (!initialized.get()) {
-                logger.info("Database not initialized, attempting initialization");
+
+            if (!initialized.get() || dataSource == null || dataSource.isClosed()) {
+                logger.info("Database pool not initialized, attempting initialization");
                 return initialize();
             }
-            
-            boolean healthy = isConnectionHealthy();
-            
-            if (!healthy) {
-                logger.warning("Connection health check failed, attempting reconnection");
-                return tryConnect();
+
+            // Test getting a connection from the pool
+            try (Connection testConn = dataSource.getConnection()) {
+                boolean healthy = testConn.isValid(2);
+                if (!healthy) {
+                    logger.warning("Connection validation failed, attempting reconnection");
+                    return tryConnect();
+                }
             }
-            
-            logger.fine("Database connection test passed");
+
+            logger.fine("Database connection pool test passed");
             return true;
-            
+
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Connection test failed with exception", e);
             setOfflineModeWithReason("Connection test failed: " + e.getMessage());
             return false;
         }
     }
-    
+
     /**
-     * Checks if there is a valid connection to the database
-     * 
+     * Checks if there is a valid connection pool to the database
+     *
      * @return true if connected, false otherwise
      */
     public static boolean isConnected() {
-        return !offlineMode.get() && initialized.get() && isConnectionHealthy();
+        if (offlineMode.get() || !initialized.get()) {
+            return false;
+        }
+
+        if (dataSource == null || dataSource.isClosed()) {
+            return false;
+        }
+
+        try (Connection testConn = dataSource.getConnection()) {
+            return testConn.isValid(1);
+        } catch (SQLException e) {
+            logger.log(Level.FINE, "Connection check failed", e);
+            return false;
+        }
     }
     
     /**
@@ -284,19 +283,22 @@ public class DatabaseManager {
     }
     
     /**
-     * Determines if a connection is managed by a connection pool
-     * 
+     * Determines if a connection is managed by the HikariCP connection pool
+     * All connections from getConnection() are pool-managed
+     *
      * @param conn The connection to check
-     * @return true if the connection is managed, false otherwise
+     * @return true if the connection is from our pool, false otherwise
      */
     public static boolean isConnectionManaged(Connection conn) {
         if (conn == null) {
             return false;
         }
-        
+
         try {
-            // Check if this is our singleton connection
-            return conn == connection;
+            // All connections from HikariCP are managed
+            // Check if connection is a HikariProxyConnection
+            String className = conn.getClass().getName();
+            return className.contains("HikariProxyConnection");
         } catch (Exception e) {
             logger.log(Level.FINE, "Error checking if connection is managed", e);
             return false;
@@ -304,78 +306,90 @@ public class DatabaseManager {
     }
     
     /**
-     * Get database connection status information
-     * 
+     * Get database connection pool status information
+     *
      * @return Status information as a string
      */
     public static String getConnectionStatus() {
         if (offlineMode.get()) {
             return "OFFLINE - Database unavailable";
         }
-        
+
         if (!initialized.get()) {
-            return "NOT_INITIALIZED - Database not connected";
+            return "NOT_INITIALIZED - Database pool not initialized";
         }
-        
-        if (isConnectionHealthy()) {
-            return "ONLINE - Database connected and healthy";
-        } else {
-            return "UNHEALTHY - Connection exists but may be stale";
+
+        if (dataSource == null || dataSource.isClosed()) {
+            return "CLOSED - Data source is closed";
+        }
+
+        try (Connection testConn = dataSource.getConnection()) {
+            if (testConn.isValid(1)) {
+                return String.format("ONLINE - Pool: %s (Active: %d, Idle: %d, Total: %d)",
+                        dataSource.getPoolName(),
+                        dataSource.getHikariPoolMXBean().getActiveConnections(),
+                        dataSource.getHikariPoolMXBean().getIdleConnections(),
+                        dataSource.getHikariPoolMXBean().getTotalConnections());
+            } else {
+                return "UNHEALTHY - Connection validation failed";
+            }
+        } catch (SQLException e) {
+            return "ERROR - Cannot get connection from pool: " + e.getMessage();
         }
     }
-    
+
     /**
-     * Shutdown the database connection safely
+     * Shutdown the database connection pool safely
      */
     public static synchronized void shutdown() {
         try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                logger.info("Database connection has been shut down gracefully");
+            if (dataSource != null && !dataSource.isClosed()) {
+                dataSource.close();
+                logger.info("Database connection pool has been shut down gracefully");
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             logger.log(Level.WARNING, "Error during database shutdown", e);
         } finally {
-            connection = null;
+            dataSource = null;
             initialized.set(false);
             offlineMode.set(true);
-            lastConnectionTest = null;
         }
     }
     
     /**
      * Get configuration information (without sensitive data)
-     * 
+     *
      * @return Configuration summary
      */
     public static String getConfigurationSummary() {
+        if (dataSource == null) {
+            return "Database Configuration: Not initialized";
+        }
+
         return String.format(
-            "Database Configuration:\n" +
-            "  URL: %s\n" +
-            "  User: %s\n" +
-            "  Driver: %s\n" +
-            "  Status: %s\n" +
-            "  Last Test: %s",
-            DB_URL,
-            DB_USER,
-            JDBC_DRIVER,
-            getConnectionStatus(),
-            lastConnectionTest != null ? lastConnectionTest.toString() : "Never"
+                "Database Configuration:\n" +
+                        "  JDBC URL: %s\n" +
+                        "  Pool Name: %s\n" +
+                        "  Max Pool Size: %d\n" +
+                        "  Min Idle: %d\n" +
+                        "  Status: %s",
+                dataSource.getJdbcUrl(),
+                dataSource.getPoolName(),
+                dataSource.getMaximumPoolSize(),
+                dataSource.getMinimumIdle(),
+                getConnectionStatus()
         );
     }
-    
+
     /**
      * Close a database connection (for backward compatibility)
+     * Note: With HikariCP, connections should be closed in try-with-resources
+     * This method is kept for API compatibility but does nothing
      */
+    @Deprecated
     public static void closeConnection() {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                logger.info("Database connection closed");
-            }
-        } catch (SQLException e) {
-            logger.log(Level.WARNING, "Error closing database connection", e);
-        }
+        logger.fine("closeConnection() called - with HikariCP, connections are auto-managed");
+        // Do nothing - HikariCP manages connections automatically
     }
     
     /**
