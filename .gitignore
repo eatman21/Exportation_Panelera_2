@@ -88,5 +88,39 @@ Desktop.ini
 .env.local
 .env.*.local
 
+# Sensitive configuration files (IMPORTANT - DO NOT COMMIT)
+**/application.properties
+**/application-*.properties
+**/database.properties
+**/hikari.properties
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+*.keystore
+**/credentials.json
+**/secrets.json
+**/config.local.properties
+
+# IDE-specific files
+.factorypath
+.recommenders/
+.metadata/
+
+# Test coverage reports
+jacoco.xml
+coverage/
+
+# Logs directory
+logs/
+*.log.*
+
 # Claude AI assistant files (optional)
 .claude/
+
+# Local development files
+local/
+scratch/
+notes.txt
+TODO.local.md
